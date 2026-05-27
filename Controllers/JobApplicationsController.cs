@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +12,7 @@ using JobTracker.Models;
 
 namespace JobTracker.Controllers
 {
+    [Authorize]
     public class JobApplicationsController : Controller
     {
         private readonly AppDbContext _context;
@@ -22,7 +25,11 @@ namespace JobTracker.Controllers
         // GET: JobApplications
         public async Task<IActionResult> Index()
         {
-            return View(await _context.JobApplications.ToListAsync());
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var applications = await _context.JobApplications
+                .Where(j => j.UserId == userId)
+                .ToListAsync();
+            return View(applications);
         }
 
         // GET: JobApplications/Details/5
@@ -54,15 +61,12 @@ namespace JobTracker.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Company,JobTitle,DateApplied,Status,Url,Notes,UserId")] JobApplication jobApplication)
+        public async Task<IActionResult> Create([Bind("Id,Company,JobTitle,DateApplied,Status,Url,Notes")] JobApplication jobApplication)
         {
-            if (ModelState.IsValid)
-            {
-                _context.Add(jobApplication);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
-            }
-            return View(jobApplication);
+            jobApplication.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _context.Add(jobApplication);
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(Index));            
         }
 
         // GET: JobApplications/Edit/5
@@ -86,17 +90,18 @@ namespace JobTracker.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Company,JobTitle,DateApplied,Status,Url,Notes,UserId")] JobApplication jobApplication)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Company,JobTitle,DateApplied,Status,Url,Notes")] JobApplication jobApplication)
         {
             if (id != jobApplication.Id)
             {
                 return NotFound();
             }
 
-            if (ModelState.IsValid)
-            {
+            
                 try
                 {
+                    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    jobApplication.UserId = userId; // Ensure the UserId is set to the current user
                     _context.Update(jobApplication);
                     await _context.SaveChangesAsync();
                 }
@@ -112,8 +117,7 @@ namespace JobTracker.Controllers
                     }
                 }
                 return RedirectToAction(nameof(Index));
-            }
-            return View(jobApplication);
+         
         }
 
         // GET: JobApplications/Delete/5
